@@ -21,3 +21,5 @@ IGNORE_CASE=1 cargo run -- 'lorem' lorem
 cargo test
 ```
 
+## LICENSE
+[License](#license)
