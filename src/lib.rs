@@ -17,6 +17,19 @@ impl Config {
         let haystack = args[2].clone();
         let ignore_case = env::var("IGNORE_CASE").is_ok();
 
+        if haystack == '*'.to_string() {
+            return Err("Recursive search Method Not implemented yet;");
+            /*here is how i think it should work
+             * get directory
+             * for file in dir
+             * read file
+             * for line in file
+             * check contains needle
+             * println line && filename
+             * increament matches
+             * print success && matches
+             */
+        }
         Ok(Config {
             needle,
             haystack,
@@ -32,9 +45,15 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     } else {
         case_sensitive_search(&config.needle, &haystack)
     };
-
-    for line in result {
-        println!("{}", line);
+    let mut matches: i64 = 0;
+    for (index, line) in result.iter().enumerate() {
+        println!("Line {}: {}", index + 1, line);
+        matches += 1;
+    }
+    if matches == 1 {
+        println!("\n1 Match Found;");
+    } else {
+        println!("\n{} Matches Found;", matches);
     }
     Ok(())
 }
