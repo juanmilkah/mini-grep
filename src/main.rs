@@ -9,8 +9,8 @@ fn main() {
         process::exit(1);
     });
 
-    if let Err(_) = run(config) {
-        eprintln!("Cannot Read from File;");
+    if let Err(e) = run(config) {
+        eprintln!("Cannot Read from File; {}", e);
         process::exit(1);
     }
 }

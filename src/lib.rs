@@ -1,10 +1,11 @@
 use std::env;
 use std::error::Error;
-use std::fs;
+use std::fs::File;
+use std::io::{self, BufRead};
 
 pub struct Config {
     needle: String,
-    haystack: String,
+    haystack: Vec<String>,
     ignore_case: bool,
 }
 
@@ -14,21 +15,21 @@ impl Config {
             return Err("Not Enough Arguments;");
         }
         let needle = args[1].clone();
-        let haystack = args[2].clone();
+        let mut haystack = vec![args[2].clone()];
         let ignore_case = env::var("IGNORE_CASE").is_ok();
 
-        if haystack == '*'.to_string() {
-            return Err("Recursive search Method Not implemented yet;");
-            /*here is how i think it should work
-             * get directory
-             * for file in dir
-             * read file
-             * for line in file
-             * check contains needle
-             * println line && filename
-             * increament matches
-             * print success && matches
-             */
+        if haystack.contains(&'*'.to_string()) {
+            /*pop to remove the asterick character*/
+            let _ = haystack.pop();
+            // Here we implement the recursive search in the current directory.
+            let paths = std::fs::read_dir("./").unwrap();
+
+            for path in paths {
+                let path = path.unwrap().path();
+                if path.is_file() {
+                    haystack.push(path.display().to_string());
+                }
+            }
         }
         Ok(Config {
             needle,
@@ -38,47 +39,36 @@ impl Config {
     }
 }
 
-pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let haystack = fs::read_to_string(config.haystack)?;
-    let result = if config.ignore_case {
-        case_insensitive_search(&config.needle, &haystack)
-    } else {
-        case_sensitive_search(&config.needle, &haystack)
-    };
-    let mut matches: i64 = 0;
-    for (index, line) in result.iter().enumerate() {
-        println!("Line {}: {}", index + 1, line);
-        matches += 1;
-    }
-    if matches == 1 {
-        println!("\n1 Match Found;");
-    } else {
-        println!("\n{} Matches Found;", matches);
-    }
-    Ok(())
-}
+pub fn run(config: Config) -> Result<Vec<String>, Box<dyn Error>> {
+    let mut matches = 0;
+    let mut results: Vec<String> = vec![];
+    println!("File Name;\tLine Number;\tLine Text;");
+    for file_path in config.haystack {
+        let file = File::open(&file_path)?;
+        let reader = io::BufReader::new(file);
 
-pub fn case_sensitive_search<'a>(needle: &str, haystack: &'a str) -> Vec<&'a str> {
-    let mut results = Vec::new();
+        for (index, line) in reader.lines().enumerate() {
+            let line = line?;
+            let is_match = if config.ignore_case {
+                line.to_lowercase().contains(&config.needle.to_lowercase())
+            } else {
+                line.contains(&config.needle)
+            };
 
-    for line in haystack.lines() {
-        if line.contains(needle) {
-            results.push(line);
+            if is_match {
+                matches += 1;
+                println!("{}:\tLine {}:\t\t{}", file_path, index + 1, line);
+                results.push(line);
+            }
         }
     }
-    results
-}
 
-pub fn case_insensitive_search<'a>(needle: &str, haystack: &'a str) -> Vec<&'a str> {
-    let needle = needle.to_lowercase();
-    let mut results = Vec::new();
-
-    for line in haystack.lines() {
-        if line.to_lowercase().contains(&needle) {
-            results.push(line);
-        }
-    }
-    results
+    println!(
+        "\n{} Match{} Found",
+        matches,
+        if matches == 1 { "" } else { "es" }
+    );
+    Ok(results)
 }
 
 #[cfg(test)]
@@ -86,23 +76,48 @@ mod tests {
     use super::*;
     #[test]
     fn one_result() {
-        let needle = "Hello";
-        let haystack = "Hello world;\nWelcome to Elclassico";
+        let needle = "Hello".to_string();
+        let haystack = vec!["hello".to_string()];
+        let ignore_case = true;
+        let conf = Config {
+            needle,
+            haystack,
+            ignore_case,
+        };
 
         assert_eq!(
-            case_sensitive_search(needle, haystack),
-            vec!["Hello world;"]
+            run(conf).unwrap(),
+            vec!["hello from the terminal;", "Hello;"]
         );
     }
 
     #[test]
     fn two_result() {
-        let needle = "Hello";
-        let haystack = "hello world from myself again\n and again;";
+        let needle = "Hello".to_string();
+        let haystack = vec!["hello".to_string()];
+        let ignore_case = false;
+        let conf = Config {
+            needle,
+            haystack,
+            ignore_case,
+        };
 
+        assert_eq!(run(conf).unwrap(), vec!["Hello;"]);
+    }
+
+    #[test]
+    fn wildcard_search() {
+        let needle = "hello".to_string();
+        let haystack = vec!["./hello".to_string(), "./lorem".to_string()];
+        let ignore_case = false;
+        let conf = Config {
+            needle,
+            haystack,
+            ignore_case,
+        };
         assert_eq!(
-            case_insensitive_search(needle, haystack),
-            vec!["hello world from myself again"]
+            run(conf).unwrap(),
+            vec!["hello from the terminal;", "hello from rust world!"]
         );
     }
 }
